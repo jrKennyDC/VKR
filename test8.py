@@ -47,7 +47,7 @@ def get_random_characteristics_from_db():
         root.title("Player Characteristics")
 
         # Виджет для отображения характеристик
-        characteristics_frame = ttk.LabelFrame(root, text="Player Characteristics")
+        characteristics_frame = ttk.LabelFrame(root, text="Player Characteristics", width=50)  # Фиксированная ширина в 200 пикселей
         characteristics_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
         # Создаем список игроков
@@ -64,7 +64,7 @@ def get_random_characteristics_from_db():
                 widget.destroy()
             for column, value in players_data[selected_player]:
                 label_text = f"{column.capitalize()}: {value}"
-                column_label = tk.Label(characteristics_frame, text=label_text)
+                column_label = tk.Label(characteristics_frame, text=label_text,wraplength=150)
                 column_label.pack()
 
         player_listbox.bind('<<ListboxSelect>>', show_player_characteristics)
@@ -98,6 +98,3 @@ def get_random_characteristics_from_db():
 
 # Вызываем метод для вывода распределенных данных игроков
 get_random_characteristics_from_db()
-
-
-

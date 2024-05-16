@@ -47,7 +47,7 @@ def get_random_characteristics_from_db():
         root.title("Player Characteristics")
 
         # Виджет для отображения характеристик
-        characteristics_frame = ttk.LabelFrame(root, text="Player Characteristics")
+        characteristics_frame = ttk.LabelFrame(root, text="Player Characteristics", width=200)  # Фиксированная ширина в 200 пикселей
         characteristics_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
         # Создаем список игроков
@@ -64,40 +64,42 @@ def get_random_characteristics_from_db():
                 widget.destroy()
             for column, value in players_data[selected_player]:
                 label_text = f"{column.capitalize()}: {value}"
-                column_label = tk.Label(characteristics_frame, text=label_text)
-                column_label.pack()
+                column_label = tk.Label(characteristics_frame, text=label_text, wraplength=200, justify="left", anchor="w")
+                column_label.pack(fill=tk.X)
 
         player_listbox.bind('<<ListboxSelect>>', show_player_characteristics)
 
-        # Виджет для видеопотока
-        video_label = tk.Label(root)
-        video_label.pack(side=tk.BOTTOM, padx=10, pady=10)
+        # Виджеты для видеопотоков
+        video_labels = []
+        for _ in range(10):
+            video_label = tk.Label(root)
+            video_label.pack(side=tk.BOTTOM, padx=10, pady=10)
+            video_labels.append(video_label)
 
-        # Функция для отображения видеопотока
-        def show_video_stream():
-            def update():
-                ret, frame = cap.read()
-                if ret:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    frame = Image.fromarray(frame)
-                    frame = ImageTk.PhotoImage(frame)
-                    video_label.configure(image=frame)
-                    video_label.image = frame
-                video_label.after(10, update)
+        # Функции для отображения видеопотоков
+        def show_video_streams():
+            caps = [cv2.VideoCapture(0) for i in range(2)]
+            for cap, video_label in zip(caps, video_labels):
+                if not cap.isOpened():
+                    print(f"Failed to open camera {caps.index(cap)}")
+                    continue
 
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():  # Проверяем, удалось ли открыть камеру
-                print("Failed to open camera")
-                return
+                def update(cap, video_label):
+                    ret, frame = cap.read()
+                    if ret:
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        frame = Image.fromarray(frame)
+                        frame = ImageTk.PhotoImage(frame)
+                        video_label.configure(image=frame)
+                        video_label.image = frame
+                    video_label.after(10, lambda: update(cap, video_label))
 
-            update()  # Запускаем первое обновление
+                update(cap, video_label)
 
-        show_video_stream()
+        show_video_streams()
 
         root.mainloop()
 
 # Вызываем метод для вывода распределенных данных игроков
 get_random_characteristics_from_db()
-
-
 

@@ -1,5 +1,9 @@
 import psycopg2
 import random
+import tkinter as tk
+from tkinter import ttk
+import cv2
+from PIL import Image, ImageTk
 
 # Подключение к базе данных
 def connect_to_db():
@@ -38,12 +42,58 @@ def get_random_characteristics_from_db():
 
         conn.close()
 
-        # Выводим данные игроков
-        for player_id, data in players_data.items():
-            print(f"Player {player_id}:")
-            for column, value in data:
-                print(f"{column.capitalize()}: {value}")
-            print()  # Добавляем пустую строку для разделения данных игроков
+        # Создаем Tkinter окно
+        root = tk.Tk()
+        root.title("Player Characteristics")
+
+        # Виджет для отображения характеристик
+        characteristics_frame = ttk.LabelFrame(root, text="Player Characteristics")
+        characteristics_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+        # Создаем список игроков
+        player_listbox = tk.Listbox(root, width=20)
+        player_listbox.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
+
+        for player_id in range(1, 11):
+            player_listbox.insert(tk.END, f"Player {player_id}")
+
+        # Функция для отображения характеристик выбранного игрока
+        def show_player_characteristics(event):
+            selected_player = player_listbox.curselection()[0] + 1
+            for widget in characteristics_frame.winfo_children():
+                widget.destroy()
+            for column, value in players_data[selected_player]:
+                label_text = f"{column.capitalize()}: {value}"
+                column_label = tk.Label(characteristics_frame, text=label_text)
+                column_label.pack()
+
+        player_listbox.bind('<<ListboxSelect>>', show_player_characteristics)
+
+        # Виджет для видеопотока
+        video_label = tk.Label(root)
+        video_label.pack(side=tk.BOTTOM, padx=10, pady=10)
+
+        # Функция для отображения видеопотока
+        def show_video_stream():
+            cap = cv2.VideoCapture(0)
+
+            def update():
+                ret, frame = cap.read()
+                if ret:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame = Image.fromarray(frame)
+                    frame = ImageTk.PhotoImage(frame)
+                    video_label.configure(image=frame)
+                    video_label.image = frame
+                video_label.after(10, update)
+
+            update()
+
+            cap.release()
+
+        show_video_stream()
+
+        root.mainloop()
 
 # Вызываем метод для вывода распределенных данных игроков
 get_random_characteristics_from_db()
