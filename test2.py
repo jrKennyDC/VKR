@@ -1,6 +1,7 @@
 import psycopg2
 import random
-import dearpygui.dearpygui as dpg
+import tkinter as tk
+from tkinter import ttk
 
 # Подключение к базе данных
 def connect_to_db():
@@ -20,56 +21,63 @@ def get_random_characteristics_from_db():
         cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'player_characteristics'")
         columns = [column[0] for column in cursor.fetchall()]
 
-        # Очищаем предыдущий вывод, если есть
-        dpg.delete_item("output")
+        # Создаем словарь для хранения данных игроков
+        players_data = {}
 
-        # Создаем таблицу
-        dpg.add_table("output", headers=columns)
+        # Выбираем случайный столбец
+        for column in columns:
+            # Получаем все значения из текущего столбца
+            cursor.execute(f"SELECT {column} FROM player_characteristics")
+            values = cursor.fetchall()
 
-        # Выбираем случайный столбец из списка столбцов
-        random_column_index = random.randint(0, len(columns) - 1)
-        random_column = columns[random_column_index]
-
-        # Выводим 10 значений из выбранного столбца
-        cursor.execute(f"SELECT {random_column} FROM player_characteristics")
-        values = cursor.fetchmany(10)
-        for value in values:
-            dpg.add_row("output", [str(val) for val in value])
-
-        # Удаляем выбранный столбец из списка столбцов
-        del columns[random_column_index]
-
-        # Если остались ещё столбцы, выбираем новый случайный столбец и выводим из него 10 значений
-        while columns:
-            random_column_index = random.randint(0, len(columns) - 1)
-            random_column = columns[random_column_index]
-
-            # Выводим 10 значений из выбранного столбца
-            cursor.execute(f"SELECT {random_column} FROM player_characteristics")
-            values = cursor.fetchmany(10)
-            for value in values:
-                dpg.add_row("output", [str(val) for val in value])
-
-            del columns[random_column_index]
+            # Случайно выбираем значение для каждого игрока
+            for player_id in range(1, 11):  # Assuming there are 10 players
+                random_value = random.choice(values)[0]
+                # Добавляем значение к данным игрока
+                if player_id not in players_data:
+                    players_data[player_id] = []
+                players_data[player_id].append((column, random_value))
 
         conn.close()
 
-# Создаем окно Dear PyGui
+        # Создаем Tkinter окно
+        root = tk.Tk()
+        root.title("Player Characteristics")
 
+        # Создаем вкладки для списка игроков и характеристик
+        notebook = ttk.Notebook(root)
+        notebook.pack(fill='both', expand=True)
 
+        # Вкладка для списка игроков
+        player_list_tab = ttk.Frame(notebook)
+        notebook.add(player_list_tab, text='Player List')
 
-# Создаем окно Dear PyGui
-def main():
-    with dpg.window(label="Database Data", width=700, height=500):
-        # Добавляем кнопку для получения данных из базы данных
-        dpg.add_button(label="Get Data", callback=get_random_characteristics_from_db)
+        # Создаем список игроков
+        player_listbox = tk.Listbox(player_list_tab, width=20)
+        player_listbox.pack(pady=10)
 
-    # Запускаем основной цикл Dear PyGui
-    dpg.setup_dearpygui()
-    dpg.show_viewport()
-    dpg.start_dearpygui()
+        for player_id in range(1, 11):
+            player_listbox.insert(tk.END, f"Player {player_id}")
 
+        # Вкладка для отображения характеристик игрока
+        characteristics_tab = ttk.Frame(notebook)
+        notebook.add(characteristics_tab, text='Player Characteristics')
 
-if __name__ == "__main__":
-    main()
+        # Функция для отображения характеристик выбранного игрока
+        def show_player_characteristics(event):
+            selected_player = player_listbox.curselection()[0] + 1
+            characteristics_frame = ttk.LabelFrame(characteristics_tab, text=f"Player {selected_player} Characteristics")
+            characteristics_frame.pack(padx=10, pady=10)
+
+            for column, value in players_data[selected_player]:
+                label_text = f"{column.capitalize()}: {value}"
+                column_label = tk.Label(characteristics_frame, text=label_text)
+                column_label.pack()
+
+        player_listbox.bind('<<ListboxSelect>>', show_player_characteristics)
+
+        root.mainloop()
+
+# Вызываем метод для вывода распределенных данных игроков
+get_random_characteristics_from_db()
 

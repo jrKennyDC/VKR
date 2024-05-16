@@ -1,6 +1,5 @@
 import psycopg2
 import random
-import tkinter as tk
 
 # Подключение к базе данных
 def connect_to_db():
@@ -39,25 +38,12 @@ def get_random_characteristics_from_db():
 
         conn.close()
 
-        # Создаем Tkinter окно
-        root = tk.Tk()
-        root.title("Player Characteristics")
-
-        # Создаем метки для отображения данных игроков
+        # Выводим данные игроков
         for player_id, data in players_data.items():
-            player_frame = tk.Frame(root, relief=tk.RIDGE, borderwidth=2)
-            player_frame.pack(pady=5)
-
-            player_label = tk.Label(player_frame, text=f"Player {player_id}:", font=("Arial", 12, "bold"))
-            player_label.pack()
-
+            print(f"Player {player_id}:")
             for column, value in data:
-                label_text = f"{column.capitalize()}: {value}"
-                column_label = tk.Label(player_frame, text=label_text)
-                column_label.pack()
-
-        root.mainloop()
+                print(f"{column.capitalize()}: {value}")
+            print()  # Добавляем пустую строку для разделения данных игроков
 
 # Вызываем метод для вывода распределенных данных игроков
 get_random_characteristics_from_db()
-
