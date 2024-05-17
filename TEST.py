@@ -1,6 +1,9 @@
 import psycopg2
 import random
 import tkinter as tk
+from tkinter import ttk
+import cv2
+from PIL import Image, ImageTk
 
 # Подключение к базе данных
 def connect_to_db():
@@ -11,6 +14,7 @@ def connect_to_db():
         print("Error connecting to PostgreSQL:", e)
         return None
 
+# Функция для получения случайных характеристик игроков из базы данных
 def get_random_characteristics_from_db():
     conn = connect_to_db()
     if conn:
@@ -30,34 +34,157 @@ def get_random_characteristics_from_db():
             values = cursor.fetchall()
 
             # Случайно выбираем значение для каждого игрока
-            for player_id in range(1, 11):  # Assuming there are 10 players
+            for player_id in range(1, 11):  # Предполагаем, что есть 10 игроков
                 random_value = random.choice(values)[0]
                 # Добавляем значение к данным игрока
                 if player_id not in players_data:
                     players_data[player_id] = []
                 players_data[player_id].append((column, random_value))
 
-        conn.close()
-
         # Создаем Tkinter окно
         root = tk.Tk()
         root.title("Player Characteristics")
 
-        # Создаем метки для отображения данных игроков
-        for player_id, data in players_data.items():
-            player_frame = tk.Frame(root, relief=tk.RIDGE, borderwidth=2)
-            player_frame.pack(pady=5)
+        # Виджет для отображения характеристик
+        characteristics_frame = ttk.LabelFrame(root, text="Player Characteristics",
+                                               width=50)  # Фиксированная ширина в 200 пикселей
+        characteristics_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-            player_label = tk.Label(player_frame, text=f"Player {player_id}:", font=("Arial", 12, "bold"))
-            player_label.pack()
+        # Создаем список игроков
+        player_listbox = tk.Listbox(root, width=20)
+        player_listbox.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
 
-            for column, value in data:
+        for player_id in range(1, 11):
+            player_listbox.insert(tk.END, f"Player {player_id}")
+
+        # Функция для отображения характеристик выбранного игрока
+        def show_player_characteristics(event):
+            if player_listbox.curselection():
+                selected_player = player_listbox.curselection()[0] + 1
+                display_player_characteristics(selected_player)
+
+        player_listbox.bind('<<ListboxSelect>>', show_player_characteristics)
+
+        def display_player_characteristics(selected_player):
+            for widget in characteristics_frame.winfo_children():
+                widget.destroy()
+            for column, value in players_data[selected_player]:
                 label_text = f"{column.capitalize()}: {value}"
-                column_label = tk.Label(player_frame, text=label_text)
+                column_label = tk.Label(characteristics_frame, text=label_text, wraplength=150)
                 column_label.pack()
+
+        # Функция для отображения окна внесения изменений
+        def show_change_menu():
+            # Очистка окна характеристик
+            for widget in characteristics_frame.winfo_children():
+                widget.destroy()
+
+            # Создание флажков для выбора столбцов
+            selected_columns.clear()  # Очищаем список выбранных столбцов
+            for column in columns:
+                var = tk.BooleanVar()
+                checkbox = tk.Checkbutton(characteristics_frame, text=column.capitalize(), variable=var)
+                checkbox.pack(side=tk.TOP, padx=5, pady=5)
+                selected_columns.append((column, var))
+
+            # Кнопка для применения выбора
+            apply_button = tk.Button(characteristics_frame, text="Применить", command=show_selected_values)
+            apply_button.pack(side=tk.TOP, padx=5, pady=5)
+
+        # Функция для отображения окна выбора значений характеристик
+        def show_selected_values():
+            if player_listbox.curselection():
+                selected_player_id = player_listbox.curselection()[0] + 1
+
+                for widget in characteristics_frame.winfo_children():
+                    widget.destroy()
+
+                # Создание списка выпадающих меню для выбора новых значений характеристик
+                selection_menus.clear()  # Очищаем список выпадающих меню
+                for column, var in selected_columns:
+                    if var.get():
+                        cursor = conn.cursor()
+                        # Получение уникальных значений для каждого выбранного столбца
+                        cursor.execute(f"SELECT DISTINCT {column} FROM player_characteristics")
+                        values = [value[0] for value in cursor.fetchall()]
+                        cursor.close()
+
+                        # Создание выпадающего меню
+                        label = tk.Label(characteristics_frame, text=f"{column.capitalize()}:")
+                        label.pack(side=tk.TOP, padx=5, pady=5)
+                        selection = ttk.Combobox(characteristics_frame, values=values)
+                        selection.pack(side=tk.TOP, padx=5, pady=5)
+                        selection_menus.append((column, selection))
+
+                # Кнопка для подтверждения изменений
+                confirm_button = tk.Button(characteristics_frame, text="Подтвердить", command=update_player_characteristics)
+                confirm_button.pack(side=tk.TOP, padx=5, pady=5)
+
+            else:
+                print("Error: No player selected.")
+
+        selected_columns = []  # Список выбранных столбцов
+        selection_menus = []   # Список выпадающих меню для выбора новых значений характеристик
+
+        # Функция для обновления характеристик игрока в базе данных
+        def update_player_characteristics():
+            if player_listbox.curselection():
+                selected_player_id = player_listbox.curselection()[0] + 1
+
+                # Создаем список кортежей (столбец, новое_значение) для выбранных значений
+                updated_values = [(column, selection.get()) for column, selection in selection_menus if selection.get()]
+
+                if updated_values:
+                    cursor = conn.cursor()
+                    try:
+                        for column, value in updated_values:
+                            cursor.execute(f"UPDATE player_characteristics SET {column} = %s WHERE id = %s",
+                                           (value, selected_player_id))
+                        conn.commit()
+                        display_player_characteristics(selected_player_id)  # Обновляем отображение характеристик
+                    except psycopg2.Error as e:
+                        conn.rollback()
+                        print("Error updating player characteristics:", e)
+                    finally:
+                        cursor.close()
+                else:
+                    print("Error: No values selected for update.")
+            else:
+                print("Error: No player selected.")
+
+        # Создаем кнопку "Меню ведущего"
+        menu_button = tk.Button(root, text="Меню ведущего", command=show_change_menu)
+        menu_button.pack(side=tk.TOP, padx=10, pady=10)
+
+        # Виджет для видеопотока
+        video_label = tk.Label(root)
+        video_label.pack(side=tk.BOTTOM, padx=10, pady=10)
+
+        # Функция для отображения видеопотока
+        def show_video_stream():
+            def update():
+                ret, frame = cap.read()
+                if ret:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame = Image.fromarray(frame)
+                    frame = ImageTk.PhotoImage(frame)
+                    video_label.configure(image=frame)
+                    video_label.image = frame
+                video_label.after(10, update)
+
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():  # Проверяем, удалось ли открыть камеру
+                print("Failed to open camera")
+                return
+
+            update()  # Запускаем первое обновление
+
+        show_video_stream()
 
         root.mainloop()
 
+    else:
+        print("Error: Unable to connect to the database.")
+
 # Вызываем метод для вывода распределенных данных игроков
 get_random_characteristics_from_db()
-
