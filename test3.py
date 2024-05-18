@@ -5,7 +5,6 @@ from tkinter import ttk
 import cv2
 from PIL import Image, ImageTk
 
-
 # Подключение к базе данных
 def connect_to_db():
     try:
@@ -14,7 +13,6 @@ def connect_to_db():
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
         return None
-
 
 # Функция для получения случайных характеристик игроков из базы данных
 def get_random_characteristics_from_db():
@@ -48,13 +46,12 @@ def get_random_characteristics_from_db():
         root.title("Player Characteristics")
 
         # Виджет для отображения характеристик
-        characteristics_frame = ttk.LabelFrame(root, text="Player Characteristics",
-                                               width=50)  # Фиксированная ширина в 200 пикселей
-        characteristics_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH, expand=True)
+        characteristics_frame = ttk.LabelFrame(root, text="Player Characteristics", width=50)
+        characteristics_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
         # Создаем список игроков
         player_listbox = tk.Listbox(root, width=20)
-        player_listbox.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
+        player_listbox.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
 
         for player_id in range(1, 11):
             player_listbox.insert(tk.END, f"Player {player_id}")
@@ -84,32 +81,34 @@ def get_random_characteristics_from_db():
                 for player_id in selected_players:
                     print(f"Updating characteristics for Player {player_id}...")
                     update_player_characteristics(player_id)
+                # Commit changes to the database
+                conn.commit()
 
             # UI for selecting players
             player_selection_frame = ttk.LabelFrame(root, text="Select Players")
-            player_selection_frame.pack(side=tk.TOP, padx=10, pady=10, fill=tk.BOTH, expand=True)
+            player_selection_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
             def select_player(event):
                 selected_players.clear()
                 for index in player_listbox.curselection():
                     selected_players.append(index + 1)
 
-            player_listbox = tk.Listbox(player_selection_frame, width=20, selectmode=tk.MULTIPLE)
-            player_listbox.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
-            player_listbox.bind('<<ListboxSelect>>', select_player)
+            player_listbox_select = tk.Listbox(player_selection_frame, width=20, selectmode=tk.MULTIPLE)
+            player_listbox_select.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
+            player_listbox_select.bind('<<ListboxSelect>>', select_player)
 
             for player_id in range(1, 11):
-                player_listbox.insert(tk.END, f"Player {player_id}")
+                player_listbox_select.insert(tk.END, f"Player {player_id}")
 
             # UI for changing characteristics
             change_characteristics_frame = ttk.LabelFrame(root, text="Change Characteristics")
-            change_characteristics_frame.pack(side=tk.TOP, padx=10, pady=10, fill=tk.BOTH, expand=True)
+            change_characteristics_frame.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
 
             selected_characteristics = []  # List to store selected characteristics
 
             # Function to apply changes to selected players
             apply_button = tk.Button(root, text="Apply Changes", command=apply_changes)
-            apply_button.pack(side=tk.TOP, padx=10, pady=10)
+            apply_button.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
             # Function to handle changes for selected players
             def update_player_characteristics(player_id):
@@ -121,16 +120,12 @@ def get_random_characteristics_from_db():
                         for column, value in updated_values:
                             cursor.execute(f"UPDATE player_characteristics SET {column} = %s WHERE id = %s",
                                            (value, player_id))
-                        conn.commit()
-                        # Print statement to verify if data is updated
                         print(f"Characteristics updated for Player {player_id}: {updated_values}")
                     except psycopg2.Error as e:
                         conn.rollback()
                         print("Error updating player characteristics:", e)
                     finally:
                         cursor.close()
-                    # Refresh players_data dictionary after database update
-                    refresh_players_data_from_db()
                 else:
                     print(f"No values selected for update for Player {player_id}")
 
@@ -147,15 +142,75 @@ def get_random_characteristics_from_db():
             # Button to display checkboxes for selecting characteristics
             display_button = tk.Button(root, text="Select Characteristics to Update",
                                        command=display_selected_characteristics)
-            display_button.pack(side=tk.TOP, padx=10, pady=10)
+            display_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+
+        # Функция для отображения меню голосования
+        def show_voting_menu():
+            # Global list to store votes
+            global votes
+            votes = []
+
+            def vote_for_player():
+                if player_listbox.curselection():
+                    selected_player = player_listbox.curselection()[0] + 1
+                    votes.append(selected_player)
+                    voted_label.config(text=f"Голос за игрока {selected_player} засчитан")
+
+            def end_voting():
+                # Count votes for each player
+                vote_count = {}
+                for player_id in range(1, 11):
+                    vote_count[player_id] = 0
+
+                for vote in votes:
+                    vote_count[vote] += 1
+
+                # Find the player with the maximum votes
+                max_votes_player = max(vote_count, key=vote_count.get)
+
+                # Display the result
+                expelled_label.config(text=f"Игрок под номером {max_votes_player} получил большинство голосов и был изгнан")
+
+            voting_window = tk.Toplevel(root)
+            voting_window.title("Voting Menu")
+
+            # Отображаем игроков
+            player_label = tk.Label(voting_window, text="Выберите игрока для голосования:")
+            player_label.pack()
+
+            player_listbox = tk.Listbox(voting_window, width=20)
+            player_listbox.pack()
+
+            for player_id in range(1, 11):
+                player_listbox.insert(tk.END, f"Player {player_id}")
+
+            # Кнопка для проголосовать
+            vote_button = tk.Button(voting_window, text="Проголосовать", command=vote_for_player)
+            vote_button.pack()
+
+            # Отображение результатов голосования
+            voted_label = tk.Label(voting_window, text="")
+            voted_label.pack()
+
+            # Кнопка для окончания голосования
+            end_voting_button = tk.Button(voting_window, text="Окончить этап голосования", command=end_voting)
+            end_voting_button.pack()
+
+            # Отображение результатов голосования
+            expelled_label = tk.Label(voting_window, text="")
+            expelled_label.pack()
 
         # Создаем кнопку "Меню ведущего"
         menu_button = tk.Button(root, text="Меню ведущего", command=show_change_menu)
-        menu_button.pack(side=tk.TOP, padx=10, pady=10)
+        menu_button.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+
+        # Создаем кнопку "Меню голосования"
+        voting_button = tk.Button(root, text="Меню голосования", command=show_voting_menu)
+        voting_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
         # Виджет для видеопотока
         video_label = tk.Label(root)
-        video_label.pack(side=tk.BOTTOM, padx=10, pady=10)
+        video_label.grid(row=0, column=2, rowspan=4, padx=10, pady=10, sticky="nsew")
 
         # Функция для отображения видеопотока
         def show_video_stream():
@@ -183,8 +238,6 @@ def get_random_characteristics_from_db():
     else:
         print("Error: Unable to connect to the database.")
 
-
 # Вызываем метод для вывода распределенных данных игроков
 get_random_characteristics_from_db()
-
 
