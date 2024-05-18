@@ -43,8 +43,6 @@ def get_random_characteristics_from_db():
                     players_data[player_id] = []
                 players_data[player_id].append((column, random_value))
 
-        conn.close()
-
         # Создаем Tkinter окно
         root = tk.Tk()
         root.title("Player Characteristics")
@@ -65,100 +63,100 @@ def get_random_characteristics_from_db():
         def show_player_characteristics(event):
             if player_listbox.curselection():
                 selected_player = player_listbox.curselection()[0] + 1
-                for widget in characteristics_frame.winfo_children():
-                    widget.destroy()
-                for column, value in players_data[selected_player]:
-                    label_text = f"{column.capitalize()}: {value}"
-                    column_label = tk.Label(characteristics_frame, text=label_text, wraplength=150)
-                    column_label.pack()
-            else:
-                print("No player selected.")
+                display_player_characteristics(selected_player)
 
         player_listbox.bind('<<ListboxSelect>>', show_player_characteristics)
 
+        def display_player_characteristics(selected_player):
+            for widget in characteristics_frame.winfo_children():
+                widget.destroy()
+            for column, value in players_data[selected_player]:
+                label_text = f"{column.capitalize()}: {value}"
+                column_label = tk.Label(characteristics_frame, text=label_text, wraplength=150)
+                column_label.pack()
+
         # Функция для отображения окна внесения изменений
         def show_change_menu():
-            # Очистка окна характеристик
-            for widget in characteristics_frame.winfo_children():
-                widget.destroy()
+            selected_players = []  # List to store IDs of selected players
 
-            # Создание флажков для выбора столбцов
-            selected_columns.clear()  # Очищаем список выбранных столбцов
-            for column in columns:
-                var = tk.BooleanVar()
-                checkbox = tk.Checkbutton(characteristics_frame, text=column.capitalize(), variable=var)
-                checkbox.pack(side=tk.TOP, padx=5, pady=5)
-                selected_columns.append((column, var))
+            # Function to handle changes for selected players
+            def apply_changes():
+                for player_id in selected_players:
+                    print(f"Updating characteristics for Player {player_id}...")
+                    update_player_characteristics(player_id)
 
-            # Кнопка для применения выбора
-            apply_button = tk.Button(characteristics_frame, text="Применить", command=show_selected_values)
-            apply_button.pack(side=tk.TOP, padx=5, pady=5)
+            # UI for selecting players
+            player_selection_frame = ttk.LabelFrame(root, text="Select Players")
+            player_selection_frame.pack(side=tk.TOP, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        # Функция для отображения выбранных значений для столбцов
-        def show_selected_values():
-            # Очистка окна характеристик
-            for widget in characteristics_frame.winfo_children():
-                widget.destroy()
+            def select_player(event):
+                selected_players.clear()
+                for index in player_listbox.curselection():
+                    selected_players.append(index + 1)
 
-            # Создание списка выпадающих меню для выбора новых значений характеристик
-            selection_menus.clear()  # Очищаем список выпадающих меню
-            for column, var in selected_columns:
-                if var.get():
-                    # Получение уникальных значений для каждого выбранного столбца
-                    cursor.execute(f"SELECT DISTINCT {column} FROM player_characteristics")
-                    values = [value[0] for value in cursor.fetchall()]
+            player_listbox = tk.Listbox(player_selection_frame, width=20, selectmode=tk.MULTIPLE)
+            player_listbox.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
+            player_listbox.bind('<<ListboxSelect>>', select_player)
 
-                    # Создание выпадающего меню
-                    label = tk.Label(characteristics_frame, text=f"{column.capitalize()}:")
-                    label.pack(side=tk.TOP, padx=5, pady=5)
-                    selection = ttk.Combobox(characteristics_frame, values=values)
-                    selection.pack(side=tk.TOP, padx=5, pady=5)
-                    selection_menus.append((column, selection))
+            for player_id in range(1, 11):
+                player_listbox.insert(tk.END, f"Player {player_id}")
 
-            # Кнопка для подтверждения изменений
-            confirm_button = tk.Button(characteristics_frame, text="Подтвердить", command=update_player_characteristics)
-            confirm_button.pack(side=tk.TOP, padx=5, pady=5)
+            # UI for changing characteristics
+            change_characteristics_frame = ttk.LabelFrame(root, text="Change Characteristics")
+            change_characteristics_frame.pack(side=tk.TOP, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        # Функция для обновления характеристик игрока
-        def update_player_characteristics():
-            if player_listbox.curselection():
-                selected_player_id = player_listbox.curselection()[0] + 1
+            selected_columns = []  # List to store selected columns
 
-                # Очистка окна характеристик
-                for widget in characteristics_frame.winfo_children():
-                    widget.destroy()
+            # Function to apply changes to selected players
+            apply_button = tk.Button(root, text="Apply Changes", command=apply_changes)
+            apply_button.pack(side=tk.TOP, padx=10, pady=10)
 
-                new_values = [selection.get() for _, selection in selection_menus]
-
-                # Обновление записи в базе данных для выбранного игрока
-                conn = connect_to_db()
-                if conn:
+            # Function to handle changes for selected players
+            def update_player_characteristics(player_id):
+                # Get updated values for selected player
+                updated_values = [(column, selection.get()) for column, selection in selected_columns if
+                                  selection.get()]
+                if updated_values:
                     cursor = conn.cursor()
-                    for column, value in zip(selected_columns, new_values):
-                        if column[1].get():
-                            cursor.execute(f"UPDATE player_characteristics SET {column[0]} = %s WHERE id = %s",
-                                           (value, selected_player_id))
-                    conn.commit()
-                    conn.close()
-
-                    # Обновление данных игрока в players_data
-                    for idx, (column, _) in enumerate(selected_columns):
-                        players_data[selected_player_id][idx] = (column, new_values[idx])
-
-                    # Обновление отображаемых характеристик в интерфейсе
-                    for widget in characteristics_frame.winfo_children():
-                        widget.destroy()
-                    for column, value in players_data[selected_player_id]:
-                        label_text = f"{column.capitalize()}: {value}"
-                        column_label = tk.Label(characteristics_frame, text=label_text, wraplength=150)
-                        column_label.pack()
+                    try:
+                        for column, value in updated_values:
+                            cursor.execute(f"UPDATE player_characteristics SET {column} = %s WHERE id = %s",
+                                           (value, player_id))
+                        conn.commit()
+                        # Print statement to verify if data is updated
+                        print(f"Characteristics updated for Player {player_id}: {updated_values}")
+                    except psycopg2.Error as e:
+                        conn.rollback()
+                        print("Error updating player characteristics:", e)
+                    finally:
+                        cursor.close()
+                    # Refresh players_data dictionary after database update
+                    refresh_players_data_from_db()
                 else:
-                    print("Error: Unable to connect to the database.")
-            else:
-                print("Error: No player selected.")
+                    print(f"No values selected for update for Player {player_id}")
 
-        selected_columns = []  # Список выбранных столбцов
-        selection_menus = []  # Список выпадающих меню для выбора новых значений характеристик
+            # Function to display characteristics for selected players
+            def display_selected_characteristics():
+                for widget in change_characteristics_frame.winfo_children():
+                    widget.destroy()
+                for column, var in selected_columns:
+                    if var.get():
+                        cursor = conn.cursor()
+                        # Get unique values for each selected column
+                        cursor.execute(f"SELECT DISTINCT {column} FROM player_characteristics")
+                        values = [value[0] for value in cursor.fetchall()]
+                        cursor.close()
+                        # Create labels and comboboxes for selected columns
+                        label = tk.Label(change_characteristics_frame, text=f"{column.capitalize()}:")
+                        label.pack(side=tk.TOP, padx=5, pady=5)
+                        selection = ttk.Combobox(change_characteristics_frame, values=values)
+                        selection.pack(side=tk.TOP, padx=5, pady=5)
+                        selected_columns.append((column, selection))
+
+            # Button to display characteristics for selected players
+            display_button = tk.Button(root, text="Display Selected Characteristics",
+                                       command=display_selected_characteristics)
+            display_button.pack(side=tk.TOP, padx=10, pady=10)
 
         # Создаем кнопку "Меню ведущего"
         menu_button = tk.Button(root, text="Меню ведущего", command=show_change_menu)
@@ -197,4 +195,5 @@ def get_random_characteristics_from_db():
 
 # Вызываем метод для вывода распределенных данных игроков
 get_random_characteristics_from_db()
+
 
