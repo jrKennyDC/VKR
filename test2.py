@@ -5,6 +5,7 @@ from tkinter import ttk
 import cv2
 from PIL import Image, ImageTk
 
+
 # Подключение к базе данных
 def connect_to_db():
     try:
@@ -13,6 +14,7 @@ def connect_to_db():
     except psycopg2.Error as e:
         print("Error connecting to PostgreSQL:", e)
         return None
+
 
 # Функция для получения случайных характеристик игроков из базы данных
 def get_random_characteristics_from_db():
@@ -72,50 +74,6 @@ def get_random_characteristics_from_db():
                 column_label = tk.Label(characteristics_frame, text=label_text, wraplength=150)
                 column_label.pack()
 
-        # Функция для отображения меню голосования
-        def show_voting_menu():
-            def vote():
-                if player_listbox.curselection():
-                    selected_player = player_listbox.curselection()[0] + 1
-                    print(f"Голос за игрока {selected_player} засчитан!")
-
-            def show_voting_results():
-                # Здесь можно добавить код для получения результатов голосования из базы данных
-                # и отображения их на главном окне
-                result_window = tk.Toplevel(root)
-                result_window.title("Результаты голосования")
-                result_label = tk.Label(result_window, text="Результаты голосования будут отображены здесь.")
-                result_label.pack()
-
-            voting_window = tk.Toplevel(root)
-            voting_window.title("Voting Menu")
-
-            # Отображаем игроков
-            player_label = tk.Label(voting_window, text="Выберите игрока для голосования:")
-            player_label.pack()
-
-            player_listbox_voting = tk.Listbox(voting_window, width=20)
-            player_listbox_voting.pack()
-
-            for player_id in range(1, 11):
-                player_listbox_voting.insert(tk.END, f"Player {player_id}")
-
-            # Кнопка для голосования
-            vote_button = tk.Button(voting_window, text="Проголосовать", command=vote)
-            vote_button.pack()
-
-            # Кнопка для отображения результатов голосования
-            results_button = tk.Button(voting_window, text="Результаты голосования", command=show_voting_results)
-            results_button.pack()
-
-            # Функция для вывода результатов голосования на главном окне
-            def show_voting_results_on_main_window():
-                result_label_main_window = tk.Label(root, text="Результаты голосования отображены здесь.")
-                result_label_main_window.grid(row=1, column=2, padx=10, pady=10, sticky="nsew")
-
-            # Вызываем функцию для вывода результатов голосования на главном окне
-            show_voting_results_on_main_window()
-
         # Функция для отображения окна внесения изменений
         def show_change_menu():
             selected_players = []  # List to store IDs of selected players
@@ -125,6 +83,7 @@ def get_random_characteristics_from_db():
                 for player_id in selected_players:
                     print(f"Updating characteristics for Player {player_id}...")
                     update_player_characteristics(player_id)
+                    update_player_display(player_id)  # Обновляем отображение характеристик после изменений
                 # Commit changes to the database
                 conn.commit()
 
@@ -188,12 +147,74 @@ def get_random_characteristics_from_db():
                                        command=display_selected_characteristics)
             display_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
+            # Move the voting menu button to the bottom
+            voting_button.grid(row=4, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+
+        # Функция для отображения меню голосования
+        def show_voting_menu():
+            # Global list to store votes
+            global votes
+            votes = []
+
+            def vote_for_player():
+                if player_listbox.curselection():
+                    selected_player = player_listbox.curselection()[0] + 1
+                    votes.append(selected_player)
+                    voted_label.config(text=f"Голос за игрока {selected_player} засчитан")
+
+            def end_voting():
+                # Count votes for each player
+                vote_count = {}
+                for player_id in range(1, 11):
+                    vote_count[player_id] = 0
+
+                for vote in votes:
+                    vote_count[vote] += 1
+
+                # Find the player with the maximum votes
+                max_votes_player = max(vote_count, key=vote_count.get)
+
+                # Display the result
+                expelled_label.config(
+                    text=f"Игрок под номером {max_votes_player} получил большинство голосов и был изгнан")
+
+            voting_window = tk.Toplevel(root)
+            voting_window.title("Voting Menu")
+
+            # Отображаем игроков
+            player_label = tk.Label(voting_window, text="Выберите игрока для голосования:")
+            player_label.pack()
+
+            player_listbox = tk.Listbox(voting_window, width=20)
+            player_listbox.pack()
+
+            for player_id in range(1, 11):
+                player_listbox.insert(tk.END, f"Player {player_id}")
+
+            # Кнопка для проголосовать
+            vote_button = tk.Button(voting_window, text="Проголосовать", command=vote_for_player)
+            vote_button.pack()
+
+            # Отображение результатов голосования
+            voted_label = tk.Label(voting_window, text="")
+            voted_label.pack()
+
+            # Кнопка для окончания голосования
+            end_voting_button = tk.Button(voting_window, text="Окончить этап голосования", command=end_voting)
+            end_voting_button.pack()
+
+            # Отображение результатов голосования
+            expelled_label = tk.Label(voting_window, text="")
+            expelled_label.pack()
+
         # Создаем кнопку "Меню ведущего"
         menu_button = tk.Button(root, text="Меню ведущего", command=show_change_menu)
         menu_button.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
         # Создаем кнопку "Меню голосования"
         voting_button = tk.Button(root, text="Меню голосования", command=show_voting_menu)
+
+        # Move the voting menu button to the bottom
         voting_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
         # Виджет для видеопотока
@@ -221,11 +242,36 @@ def get_random_characteristics_from_db():
 
         show_video_stream()
 
+        # Функция для обновления отображения характеристик игрока
+        def update_player_display(player_id):
+            # Получаем обновленные характеристики игрока из базы данных
+            conn = connect_to_db()
+            if conn:
+                cursor = conn.cursor()
+
+                cursor.execute("SELECT * FROM player_characteristics WHERE id = %s", (player_id,))
+                player_characteristics = cursor.fetchone()
+
+                if player_characteristics:
+                    for widget in characteristics_frame.winfo_children():
+                        widget.destroy()
+                    for i in range(len(columns)):
+                        column_label = tk.Label(characteristics_frame,
+                                                text=f"{columns[i].capitalize()}: {player_characteristics[i + 1]}",
+                                                wraplength=150)
+                        column_label.pack()
+                else:
+                    print(f"No data found for Player {player_id}")
+
+                conn.close()
+            else:
+                print("Error: Unable to connect to the database.")
+
         root.mainloop()
 
     else:
         print("Error: Unable to connect to the database.")
 
+
 # Вызываем метод для вывода распределенных данных игроков
 get_random_characteristics_from_db()
-
